@@ -1,0 +1,42 @@
+# Python virtual environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Raw datasets
+data/raw/
+data/processed/
+*.wav
+*.mp3
+*.flac
+
+# Model weights and cached features
+models/
+checkpoints/
+features/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.npy
+*.npz
+
+# Temporary files
+*.log
+tmp/
+temp/
+
+# Keep result figures and evaluation CSVs
