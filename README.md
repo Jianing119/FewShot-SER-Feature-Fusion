@@ -80,10 +80,43 @@ the few-shot experiments.
 
 The selected validation candidate was C=100, gamma=0.01: accuracy 0.6172, macro-F1 0.6217, and UAR 0.6172.
 
+### Day 5: emotion2vec feature extraction
+
+From the project root in PowerShell, with the Day 1 CUDA environment and
+the Day 2 WAV files and `data/metadata.csv` in place:
+
+```powershell
+$env:HF_HUB_DISABLE_XET = '1'
+.\.venv\Scripts\python.exe scripts/extract_emotion2vec.py
+.\.venv\Scripts\python.exe scripts/extract_emotion2vec.py --verify-only
+```
+
+The script reads the 768 WAVs in CSV order, checks their 48 kHz sample rate,
+mixes channels to mono and resamples to 16 kHz before inference on `cuda:0`.
+FunASR uses `emotion2vec/emotion2vec_base` from Hugging Face with
+`granularity="utterance"` and `extract_embedding=True`.
+
+`features/emotion2vec_features.npz` contains `X` (768 × 768, float32),
+`labels`, `splits` and `file_paths` (768 entries each). Verification checks
+the matrix for NaN and Inf and compares the three row fields to the CSV in
+order. The split counts are 512 train, 128 validation and 128 test.
+All rows are embedded independently with the pretrained model. This step
+does not fit a classifier, select hyperparameters or score the test split.
+
+Run one extraction process at a time. A checkpoint is written atomically
+every 16 WAVs and on a handled error or Ctrl+C after new rows complete.
+Rerun the same command to resume. If the CSV row order or values used for
+alignment changed, the checkpoint is rejected. If you changed source audio
+or the model environment, move the partial or final NPZ out of `features/`
+before starting a fresh run. For a WAV error, the message gives the CSV line
+number and file path. Once extraction completes, a regular rerun verifies the
+existing archive. The raw audio, final archive and checkpoint are Git-ignored.
+
 ## References
 
 - RAVDESS dataset: https://zenodo.org/records/1188976
 - emotion2vec: https://huggingface.co/emotion2vec/emotion2vec_base
+- FunASR emotion2vec implementation: https://github.com/modelscope/FunASR/blob/main/funasr/models/emotion2vec/model.py
 
 ## Project Status
 
