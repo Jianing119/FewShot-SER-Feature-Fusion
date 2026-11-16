@@ -41,15 +41,44 @@ The raw dataset is not included in this repository.
 - [x] PyTorch CUDA verification
 - [x] emotion2vec model initialization
 - [x] Successful extraction of a 768-dimensional speech embedding
-- [ ] Dataset preprocessing
-- [ ] MFCC baseline
+- [x] Dataset preprocessing and MFCC extraction
+- [x] MFCC + RBF SVM validation baseline
 - [ ] Few-shot experiments
 - [ ] Feature fusion experiments
 - [ ] Results and analysis
 
 ## Reproducibility
 
-Scripts, experimental configurations, and evaluation instructions will be added as the study progresses.
+### Day 4: MFCC + RBF SVM baseline
+
+From the project root in PowerShell, after generating the Day 3 feature archive:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/train_svm.py
+```
+
+The input is `features/mfcc_features.npz` (768 × 80). The training split
+has 512 utterances from speakers 01–16; validation has 128 from speakers
+17–20. The 128 utterances from speakers 21–24 remain reserved for test.
+The fixed label set is `happy`, `sad`, `angry`, `fearful`.
+
+Every candidate fits a fresh StandardScaler + RBF SVM pipeline on the training
+split only. The predefined grid is C = {0.1, 1, 10, 100} and
+gamma = {0.001, 0.01, 0.1}. Selection maximizes validation macro-F1, breaking
+ties by higher UAR, higher accuracy, smaller C, then smaller gamma. UAR is
+the mean recall across the four labels. Day 4 does not score or predict on
+the test set or refit on validation.
+
+- `results/mfcc_svm_val.csv`: accuracy, macro-F1 and UAR for all 12 validation
+  candidates; `selected=1` marks the chosen row.
+- `models/mfcc_svm.joblib`: selected pipeline fitted on training data only.
+  This file is kept locally; load only trusted joblib artifacts.
+
+These are validation results for model selection; they do not estimate final
+test performance. This baseline uses all training utterances and precedes
+the few-shot experiments.
+
+The selected validation candidate was C=100, gamma=0.01: accuracy 0.6172, macro-F1 0.6217, and UAR 0.6172.
 
 ## References
 
