@@ -44,7 +44,8 @@ The raw dataset is not included in this repository.
 - [x] Dataset preprocessing and MFCC extraction
 - [x] MFCC + RBF SVM validation baseline
 - [ ] Few-shot experiments
-- [ ] Feature fusion experiments
+- [x] emotion2vec + RBF SVM validation baseline
+- [x] MFCC + emotion2vec early-fusion validation
 - [ ] Results and analysis
 
 ## Reproducibility
@@ -111,6 +112,51 @@ or the model environment, move the partial or final NPZ out of `features/`
 before starting a fresh run. For a WAV error, the message gives the CSV line
 number and file path. Once extraction completes, a regular rerun verifies the
 existing archive. The raw audio, final archive and checkpoint are Git-ignored.
+
+### Day 7 · MFCC + emotion2vec early fusion
+
+After extracting both feature archives, run from the project root in PowerShell.
+The first two commands generate the baseline CSVs required for the comparison.
+Skip them if those CSVs are already available.
+
+```powershell
+.\.venv\Scripts\python.exe scripts/train_svm.py
+.\.venv\Scripts\python.exe scripts/train_emotion2vec_svm.py
+.\.venv\Scripts\python.exe scripts/train_fusion_svm.py
+```
+
+Both archives must have identical labels, split assignments, and file paths in
+the same row order. The script checks the speaker sets from the filenames
+(01–16 train, 17–20 validation, 21–24 test). It fits one StandardScaler per
+branch using the 512 training utterances, then concatenates the 80 standardized
+MFCC coordinates and 768 standardized emotion2vec coordinates in that order.
+Each RBF SVM is fitted on the 512 fused training rows. The 128 validation rows
+select the best configuration using the Day 4 grid and tie-breaking rule.
+Test metadata is checked for split integrity. Test features are excluded from
+transformation, fitting, hyperparameter selection, prediction, and scoring.
+
+- `results/fusion_svm_val.csv` records all 12 validation candidates.
+  `selected=1` marks the chosen configuration.
+- `results/model_comparison_val.csv` combines the selected validation rows
+  from all three models.
+- `models/fusion_svm.joblib` stores the two fitted scalers in `scalers`,
+  their concatenation order in `branch_order`, input widths in
+  `branch_dimensions`, and the trained SVC in `svm`. Apply the stored scalers
+  to matching raw features in that order, concatenate, and call `svm.predict`.
+  The script reloads its own bundle and checks every validation prediction.
+
+The selected fusion configuration (C=10, gamma=0.001) reached accuracy
+0.703125, macro-F1 0.698886, and UAR 0.703125 on validation. Its macro-F1 was
+2.27 percentage points above the emotion2vec baseline on this split.
+The three scores per model are validation estimates from the full training
+split. Keep the test set reserved for the final evaluation protocol.
+
+Per-coordinate standardization still allows the wider branch to contribute
+more to the squared Euclidean distances used by the RBF kernel. A follow-up
+ablation can divide each standardized branch by the square root of its width
+to compare approximately dimension-balanced distances, using the same
+speaker splits and validation-only hyperparameter selection. The score
+difference above measures the unweighted fusion setup on this validation split.
 
 ## References
 
