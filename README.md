@@ -1,192 +1,130 @@
 # Few-shot Speech Emotion Recognition with Feature Fusion
 
-## Overview
+This project studies how labeled training data affects speech emotion recognition on unseen speakers. It compares three representations with the same RBF SVM classifier: **MFCC**, **pretrained emotion2vec**, and **MFCC + emotion2vec early fusion**. The experiments ask how performance scales with label budget, whether pretrained embeddings improve on acoustic features, and when their combination helps.
 
-This project investigates the effectiveness of traditional acoustic features and pre-trained speech representations for speech emotion recognition under limited labeled data conditions.
+**Status:** Day 1–8 implementation and validation experiments are complete. The held-out test set is reserved for final evaluation.
 
-The study compares three approaches:
+## Data and features
 
-1. MFCC features with SVM
-2. emotion2vec embeddings with SVM
-3. Fusion of MFCC and emotion2vec features with SVM
+The [RAVDESS dataset](https://zenodo.org/records/1188976) contributes **768 audio-only speech utterances** across four balanced classes: happy, sad, angry, and fearful. The three splits use disjoint speakers.
 
-## Research Questions
+| Split | Actors | Utterances | Per class |
+| --- | --- | ---: | ---: |
+| Train | 01–16 | 512 | 128 |
+| Validation | 17–20 | 128 | 32 |
+| Held-out test | 21–24 | 128 | 32 |
 
-- How does the amount of labeled training data affect speech emotion recognition performance?
-- Can pre-trained speech representations outperform traditional acoustic features in low-resource settings?
-- Does feature fusion improve classification performance?
+| Representation | Construction | Shape / width |
+| --- | --- | --- |
+| MFCC | Mean and standard deviation of 40 MFCCs across frames at 16 kHz | 768 × 80 |
+| emotion2vec | Frozen emotion2vec_base utterance embeddings | 768 × 768 |
+| Early fusion | Standardize each branch using training rows, then concatenate MFCC followed by emotion2vec | 848 dimensions |
 
-## Dataset
+RAVDESS recordings are distributed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). See the dataset record for attribution and commercial licensing. The pretrained checkpoint has separate terms in its [model card](https://huggingface.co/emotion2vec/emotion2vec_base).
 
-**RAVDESS** — Ryerson Audio-Visual Database of Emotional Speech and Song.
+## Validation results
 
-Four emotion categories will be considered: Happy, Sad, Angry, and Fearful.
+### Full training set (512 utterances)
 
-Dataset: https://zenodo.org/records/1188976
+| RBF SVM features | C | Gamma | Accuracy | Macro-F1 | UAR |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| MFCC | 100 | 0.01 | 0.617188 | 0.621694 | 0.617188 |
+| emotion2vec | 10 | 0.001 | 0.679688 | 0.676197 | 0.679688 |
+| Early fusion | 10 | 0.001 | **0.703125** | **0.69888633** | **0.703125** |
 
-The raw dataset is not included in this repository.
+UAR is the mean per-class recall. See [model_comparison_val.csv](results/model_comparison_val.csv).
 
-## Environment
+### Few-shot Macro-F1 on the fixed validation split
 
-- Python 3.10
-- PyTorch 2.6.0
-- CUDA 12.6
-- FunASR
-- emotion2vec_base
-- Scikit-learn
+| Shots per class | Total train | MFCC | emotion2vec | Early fusion |
+| ---: | ---: | ---: | ---: | ---: |
+| 5 | 20 | 34.41% | 41.11% | **41.71%** |
+| 10 | 40 | 39.80% | **52.18%** | 51.95% |
+| 20 | 80 | 44.49% | 56.50% | **57.61%** |
+| 50 | 200 | 50.82% | 63.02% | **63.07%** |
+| 128 (full) | 512 | 62.17% | 67.62% | **69.89%** |
 
-## Current Progress
+Each 5–50-shot cell is the mean over five training subsamples. Each full-training cell represents one unique fit. On this split, emotion2vec improves over MFCC at all five budgets. Fusion leads at four budgets and is close to emotion2vec at 50-shot. See [fewshot_summary_val.csv](results/fewshot_summary_val.csv).
 
-- [x] Python virtual environment setup
-- [x] PyTorch CUDA verification
-- [x] emotion2vec model initialization
-- [x] Successful extraction of a 768-dimensional speech embedding
-- [x] Dataset preprocessing and MFCC extraction
-- [x] MFCC + RBF SVM validation baseline
-- [x] Few-shot experiments
-- [x] emotion2vec + RBF SVM validation baseline
-- [x] MFCC + emotion2vec early-fusion validation
-- [ ] Results and analysis
+## Quick start and Day 1–8 progress
 
-## Reproducibility
+Run the commands from the repository root in Windows PowerShell.
 
-### Day 4: MFCC + RBF SVM baseline
+### Day 1 · Environment and GPU smoke test
 
-From the project root in PowerShell, after generating the Day 3 feature archive:
-
-```powershell
-.\.venv\Scripts\python.exe scripts/train_svm.py
-```
-
-The input is `features/mfcc_features.npz` (768 × 80). The training split
-has 512 utterances from speakers 01–16; validation has 128 from speakers
-17–20. The 128 utterances from speakers 21–24 remain reserved for test.
-The fixed label set is `happy`, `sad`, `angry`, `fearful`.
-
-Every candidate fits a fresh StandardScaler + RBF SVM pipeline on the training
-split only. The predefined grid is C = {0.1, 1, 10, 100} and
-gamma = {0.001, 0.01, 0.1}. Selection maximizes validation macro-F1, breaking
-ties by higher UAR, higher accuracy, smaller C, then smaller gamma. UAR is
-the mean recall across the four labels. Day 4 does not score or predict on
-the test set or refit on validation.
-
-- `results/mfcc_svm_val.csv`: accuracy, macro-F1 and UAR for all 12 validation
-  candidates; `selected=1` marks the chosen row.
-- `models/mfcc_svm.joblib`: selected pipeline fitted on training data only.
-  This file is kept locally; load only trusted joblib artifacts.
-
-These are validation results for model selection; they do not estimate final
-test performance. This baseline uses all training utterances and precedes
-the few-shot experiments.
-
-The selected validation candidate was C=100, gamma=0.01: accuracy 0.6172, macro-F1 0.6217, and UAR 0.6172.
-
-### Day 5: emotion2vec feature extraction
-
-From the project root in PowerShell, with the Day 1 CUDA environment and
-the Day 2 WAV files and `data/metadata.csv` in place:
+Use Python 3.10 and an NVIDIA driver compatible with the PyTorch 2.6.0 CUDA 12.6 build. [requirements-day1.txt](requirements-day1.txt) records the environment, including PyTorch, torchaudio, FunASR, librosa, and scikit-learn. The extra index supplies the CUDA wheels. [PyTorch installation reference](https://pytorch.org/get-started/previous-versions/)
 
 ```powershell
+py -3.10 -m venv .venv
+$py = ".\.venv\Scripts\python.exe"
+& $py -m pip install --extra-index-url https://download.pytorch.org/whl/cu126 -r requirements-day1.txt
+& $py -c "import torch; print(torch.__version__, torch.version.cuda); assert torch.cuda.is_available(); print(torch.cuda.get_device_name(0))"
 $env:HF_HUB_DISABLE_XET = '1'
-.\.venv\Scripts\python.exe scripts/extract_emotion2vec.py
-.\.venv\Scripts\python.exe scripts/extract_emotion2vec.py --verify-only
+& $py scripts/test_emotion2vec.py
 ```
 
-The script reads the 768 WAVs in CSV order, checks their 48 kHz sample rate,
-mixes channels to mono and resamples to 16 kHz before inference on `cuda:0`.
-FunASR uses `emotion2vec/emotion2vec_base` from Hugging Face with
-`granularity="utterance"` and `extract_embedding=True`.
+The smoke test initializes the Hugging Face checkpoint through FunASR on CUDA and extracts a 768-dimensional embedding from the example WAV. The Xet setting works around the earlier Hugging Face download issue. Set it again in a new PowerShell session before downloading.
 
-`features/emotion2vec_features.npz` contains `X` (768 × 768, float32),
-`labels`, `splits` and `file_paths` (768 entries each). Verification checks
-the matrix for NaN and Inf and compares the three row fields to the CSV in
-order. The split counts are 512 train, 128 validation and 128 test.
-All rows are embedded independently with the pretrained model. This step
-does not fit a classifier, select hyperparameters or score the test split.
+### Days 2–3 · Prepare RAVDESS and extract MFCCs
 
-Run one extraction process at a time. A checkpoint is written atomically
-every 16 WAVs and on a handled error or Ctrl+C after new rows complete.
-Rerun the same command to resume. If the CSV row order or values used for
-alignment changed, the checkpoint is rejected. If you changed source audio
-or the model environment, move the partial or final NPZ out of `features/`
-before starting a fresh run. For a WAV error, the message gives the CSV line
-number and file path. Once extraction completes, a regular rerun verifies the
-existing archive. The raw audio, final archive and checkpoint are Git-ignored.
-
-### Day 7 · MFCC + emotion2vec early fusion
-
-After extracting both feature archives, run from the project root in PowerShell.
-The first two commands generate the baseline CSVs required for the comparison.
-Skip them if those CSVs are already available.
+Download **`Audio_Speech_Actors_01-24.zip`** from the [RAVDESS release](https://zenodo.org/records/1188976) and extract the actor folders under `data/raw/RAVDESS/` so that, for example, `Actor_01/` is directly inside it.
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/train_svm.py
-.\.venv\Scripts\python.exe scripts/train_emotion2vec_svm.py
-.\.venv\Scripts\python.exe scripts/train_fusion_svm.py
+& $py scripts/prepare_dataset.py
+& $py scripts/extract_mfcc.py
+& $py scripts/check_mfcc.py
 ```
 
-Both archives must have identical labels, split assignments, and file paths in
-the same row order. The script checks the speaker sets from the filenames
-(01–16 train, 17–20 validation, 21–24 test). It fits one StandardScaler per
-branch using the 512 training utterances, then concatenates the 80 standardized
-MFCC coordinates and 768 standardized emotion2vec coordinates in that order.
-Each RBF SVM is fitted on the 512 fused training rows. The 128 validation rows
-select the best configuration using the Day 4 grid and tie-breaking rule.
-Test metadata is checked for split integrity. Test features are excluded from
-transformation, fitting, hyperparameter selection, prediction, and scoring.
+Day 2 generates [data/metadata.csv](data/metadata.csv) with paths, actor IDs, emotions, and split assignments. Day 3 writes and checks `features/mfcc_features.npz`.
 
-- `results/fusion_svm_val.csv` records all 12 validation candidates.
-  `selected=1` marks the chosen configuration.
-- `results/model_comparison_val.csv` combines the selected validation rows
-  from all three models.
-- `models/fusion_svm.joblib` stores the two fitted scalers in `scalers`,
-  their concatenation order in `branch_order`, input widths in
-  `branch_dimensions`, and the trained SVC in `svm`. Apply the stored scalers
-  to matching raw features in that order, concatenate, and call `svm.predict`.
-  The script reloads its own bundle and checks every validation prediction.
+### Days 4–7 · Train full-data baselines and extract emotion2vec
 
-The selected fusion configuration (C=10, gamma=0.001) reached accuracy
-0.703125, macro-F1 0.698886, and UAR 0.703125 on validation. Its macro-F1 was
-2.27 percentage points above the emotion2vec baseline on this split.
-The three scores per model are validation estimates from the full training
-split. Keep the test set reserved for the final evaluation protocol.
-
-Per-coordinate standardization still allows the wider branch to contribute
-more to the squared Euclidean distances used by the RBF kernel. A follow-up
-ablation can divide each standardized branch by the square root of its width
-to compare approximately dimension-balanced distances, using the same
-speaker splits and validation-only hyperparameter selection. The score
-difference above measures the unweighted fusion setup on this validation split.
-
-### Day 8: Few-shot RBF SVM on fixed validation
-
-From the project root with both feature archives in `features/`:
+| Day | Completed work |
+| --- | --- |
+| 4 | Train the MFCC + RBF SVM baseline on all 512 training utterances. |
+| 5 | Extract and verify all 768 frozen emotion2vec embeddings. |
+| 6 | Train emotion2vec + RBF SVM on all 512 training utterances. |
+| 7 | Check archive alignment and speaker assignments, then fit separate training-only scalers and train the 848-dimensional early-fusion RBF SVM. |
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/run_fewshot.py
+& $py scripts/train_svm.py
+$env:HF_HUB_DISABLE_XET = '1'
+& $py scripts/extract_emotion2vec.py
+& $py scripts/extract_emotion2vec.py --verify-only
+& $py scripts/train_emotion2vec_svm.py
+& $py scripts/train_fusion_svm.py
 ```
 
-The script checks both feature matrices (768 × 80 and 768 × 768) for finite values, verifies row alignment using labels, splits and file paths, and checks actor assignments and per-class counts. Actors 01–16 supply training examples, actors 17–20 form the fixed validation set, and actors 21–24 are reserved for test. Test rows only participate in input integrity checks.
+**Day 5 verification.** Extraction checks the source audio is at 48 kHz, converts to mono, and resamples to 16 kHz. FunASR uses `cuda:0` with `granularity="utterance"` and `extract_embedding=True`. The output, `features/emotion2vec_features.npz`, contains the float32 X matrix and labels, splits, and `file_paths` arrays. The verify-only command checks shape, finite values, and exact metadata alignment in CSV row order without running FunASR. A regular rerun also verifies an existing final archive.
 
-For each seed (42, 123, 2026, 3407, 777), independently permute the training rows within each emotion and take the first 5, 10, 20, 50 or 128 rows per class without replacement. Budgets are nested within each seed. MFCC, emotion2vec and early fusion use the same sampled rows in the original archive order. Each scaler fits only its current training subset. Fusion separately standardizes the two branches before concatenation.
+Run one extractor at a time. It saves `features/emotion2vec_partial.npz` atomically every 16 WAVs and on handled errors or Ctrl+C after new rows complete. Rerun extraction to resume. A changed metadata order or alignment value invalidates the checkpoint. Move the partial and final archives aside before re-extracting after changes to the source audio or model environment. WAV errors identify the CSV line and file path.
 
-| Features | RBF SVM C | Gamma |
-| --- | ---: | ---: |
-| MFCC | 100 | 0.01 |
-| emotion2vec | 10 | 0.001 |
-| Early fusion | 10 | 0.001 |
+**Days 4, 6, and 7 model selection.** Each candidate fits its standardization and classifier on training data. The grid uses C ∈ {0.1, 1, 10, 100} and gamma ∈ {0.001, 0.01, 0.1}. Rank by higher validation Macro-F1, UAR, and Accuracy, then by smaller C and gamma. The three candidate CSVs ([MFCC](results/mfcc_svm_val.csv), [emotion2vec](results/emotion2vec_svm_val.csv), [fusion](results/fusion_svm_val.csv)) contain split, C, gamma, accuracy, `macro_f1`, uar, and selected. The chosen row has `selected=1`. Day 7 reads both baseline CSVs to build the three-method comparison.
 
-These settings were selected with full training and the same validation set on Days 4, 6 and 7. Day 8 keeps them fixed at every budget. Use these curves for exploratory validation comparisons and reserve final generalization claims for test. The fusion baseline gives each standardized coordinate the same weight. As RBF uses summed squared differences, the 768-dimensional branch can contribute more distance than the 80-dimensional branch. The comparison retains Day 7's weighting.
+The selected joblib files are saved in models/. The fusion bundle contains scalers, `branch_order`, `branch_dimensions`, and svm. For inference, scale each raw branch with its saved scaler, concatenate in the stored order, then call `svm.predict`. Training checks that the reloaded model reproduces validation predictions. Load only trusted joblib artifacts.
 
-- `results/fewshot_runs_val.csv` has 75 rows of accuracy, macro-F1 and UAR (mean recall across the four emotions). At 128 per class, the 512 training rows are identical for all seeds, so each method fits once and copies the metrics into the four rows marked `reused_full_train=1`.
-- `results/fewshot_summary_val.csv` has 15 method-by-budget rows. It reports the mean and sample standard deviation over five seed runs at each smaller budget. The full training budget has `n_fits=1` and blank standard deviations. Seed spread describes training subsampling under this fixed split.
+### Day 8 · Run the few-shot experiment
+
+With both feature archives present and aligned, run:
+
+```powershell
+& $py scripts/run_fewshot.py
+# Optional: point to a different root containing features/ and results/
+& $py scripts/run_fewshot.py --root "D:\SER-FewShot-Research"
+```
+
+For seeds **42, 123, 2026, 3407, 777**, the script permutes the training rows within each emotion, then takes the first **5, 10, 20, 50, or 128** without replacement. Budgets are nested within each seed, and all methods use identical sampled rows. Each scaler is fitted anew on the sampled training rows. Each method uses its full-training C and gamma from the results table at every budget. All runs score the same 128 validation utterances.
+
+- [fewshot_runs_val.csv](results/fewshot_runs_val.csv) contains 75 records with split, method, `shots_per_class`, seed, `n_train`, C, gamma, `reused_full_train`, accuracy, `macro_f1`, and uar. At 128-shot the full training set is identical across seeds, so one fit per method supplies the first row and four rows marked `reused_full_train=1`.
+- [fewshot_summary_val.csv](results/fewshot_summary_val.csv) contains 15 method-by-budget rows. It records split, method, `shots_per_class`, `n_train`, `n_records`, `n_fits`, and _mean/_std columns for accuracy, `macro_f1`, and uar. Standard deviations are sample estimates across the five subsamples at each smaller budget. At 128-shot, `n_records=5`, `n_fits=1`, and the standard deviations are blank.
+
+## Interpretation and repository hygiene
+
+The test audio is embedded independently and the test rows in the feature archives are checked for input integrity. Test data has not been used to fit scalers or classifiers, choose hyperparameters, or generate predictions or scores. Days 4, 6, and 7 selected hyperparameters on the same validation split used for Day 8, so the reported scores are susceptible to selection bias. Seed variability measures training subsampling on one fixed speaker split. The wider embedding branch can contribute more to RBF distances even after coordinate-wise standardization. A branch-weighting ablation and held-out test evaluation remain open.
+
+Keep WAV files, feature archives, checkpoints, and locally fitted models out of Git. The repository tracks metadata and evaluation CSVs. See [.gitignore](.gitignore).
 
 ## References
 
-- RAVDESS dataset: https://zenodo.org/records/1188976
-- emotion2vec: https://huggingface.co/emotion2vec/emotion2vec_base
-- FunASR emotion2vec implementation: https://github.com/modelscope/FunASR/blob/main/funasr/models/emotion2vec/model.py
-
-## Project Status
-
-Work in progress — experimental results have not yet been finalized.
+- Livingstone & Russo (2018), [RAVDESS paper](https://doi.org/10.1371/journal.pone.0196391) and [dataset release](https://zenodo.org/records/1188976).
+- Ma et al., [emotion2vec paper](https://arxiv.org/abs/2312.15185), [emotion2vec_base model card](https://huggingface.co/emotion2vec/emotion2vec_base), and [FunASR implementation](https://github.com/modelscope/FunASR/blob/main/funasr/models/emotion2vec/model.py).
