@@ -43,7 +43,7 @@ The raw dataset is not included in this repository.
 - [x] Successful extraction of a 768-dimensional speech embedding
 - [x] Dataset preprocessing and MFCC extraction
 - [x] MFCC + RBF SVM validation baseline
-- [ ] Few-shot experiments
+- [x] Few-shot experiments
 - [x] emotion2vec + RBF SVM validation baseline
 - [x] MFCC + emotion2vec early-fusion validation
 - [ ] Results and analysis
@@ -157,6 +157,29 @@ ablation can divide each standardized branch by the square root of its width
 to compare approximately dimension-balanced distances, using the same
 speaker splits and validation-only hyperparameter selection. The score
 difference above measures the unweighted fusion setup on this validation split.
+
+### Day 8: Few-shot RBF SVM on fixed validation
+
+From the project root with both feature archives in `features/`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run_fewshot.py
+```
+
+The script checks both feature matrices (768 × 80 and 768 × 768) for finite values, verifies row alignment using labels, splits and file paths, and checks actor assignments and per-class counts. Actors 01–16 supply training examples, actors 17–20 form the fixed validation set, and actors 21–24 are reserved for test. Test rows only participate in input integrity checks.
+
+For each seed (42, 123, 2026, 3407, 777), independently permute the training rows within each emotion and take the first 5, 10, 20, 50 or 128 rows per class without replacement. Budgets are nested within each seed. MFCC, emotion2vec and early fusion use the same sampled rows in the original archive order. Each scaler fits only its current training subset. Fusion separately standardizes the two branches before concatenation.
+
+| Features | RBF SVM C | Gamma |
+| --- | ---: | ---: |
+| MFCC | 100 | 0.01 |
+| emotion2vec | 10 | 0.001 |
+| Early fusion | 10 | 0.001 |
+
+These settings were selected with full training and the same validation set on Days 4, 6 and 7. Day 8 keeps them fixed at every budget. Use these curves for exploratory validation comparisons and reserve final generalization claims for test. The fusion baseline gives each standardized coordinate the same weight. As RBF uses summed squared differences, the 768-dimensional branch can contribute more distance than the 80-dimensional branch. The comparison retains Day 7's weighting.
+
+- `results/fewshot_runs_val.csv` has 75 rows of accuracy, macro-F1 and UAR (mean recall across the four emotions). At 128 per class, the 512 training rows are identical for all seeds, so each method fits once and copies the metrics into the four rows marked `reused_full_train=1`.
+- `results/fewshot_summary_val.csv` has 15 method-by-budget rows. It reports the mean and sample standard deviation over five seed runs at each smaller budget. The full training budget has `n_fits=1` and blank standard deviations. Seed spread describes training subsampling under this fixed split.
 
 ## References
 
