@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "dataset": "RAVDESS four emotions",
+  "training_actors": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "validation_actors": [
+    17,
+    18,
+    19,
+    20
+  ],
+  "test_actors": [
+    21,
+    22,
+    23,
+    24
+  ],
+  "primary_metric": "macro_f1",
+  "secondary_metrics": [
+    "accuracy",
+    "uar"
+  ],
+  "training_policy": "train-only 512; no refit",
+  "test_policy": "one final evaluation; no retuning",
+  "models": {
+    "mfcc": {
+      "C": 100.0,
+      "gamma": 0.01,
+      "validation_macro_f1": 0.6216938538611925,
+      "model_sha256": "14e3f0581a0be5578f5e345478e0b2879bc1feb4b1096970da5fe5d4eeed242b"
+    },
+    "emotion2vec": {
+      "C": 10.0,
+      "gamma": 0.001,
+      "validation_macro_f1": 0.6761968546888503,
+      "model_sha256": "34ded34cf1a0c68e00e67e776f81e8eb6789e12e72cc40b236023148b35ed8cf"
+    },
+    "fusion": {
+      "C": 10.0,
+      "gamma": 0.001,
+      "validation_macro_f1": 0.698886329623514,
+      "model_sha256": "951d4c5e9e25068981367eb8f34199b9c45bb7617769eda0de7d331dccc80fd2"
+    }
+  },
+  "feature_sha256": {
+    "mfcc": "dfd7585c989bc9c3d59b8b36bde92f183a3a9e815cc7662b6112ffc3d6ab5f7e",
+    "emotion2vec": "510c12867a1d796858eaa6c34c06a9321208db85a4bc286d8c380cc9ebf80513"
+  }
+}
